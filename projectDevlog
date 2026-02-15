@@ -1,0 +1,60 @@
+--------------------------------------------------
+PROJECT DEVLOG
+--------------------------------------------------
+
+PHASE 1 - ENVIRONMENT AND PROJECT SETUP
+
+Status: COMPLETE
+
+
+WHAT WAS ADDED
+--------------
+- Git repository initialized
+- PyCharm project created
+- Virtual environment (venv) created and activated
+- Required libraries installed:
+    numpy
+    scipy
+    matplotlib
+    opencv-python
+- requirements.txt generated using pip freeze
+- Project folder structure created:
+    src/
+    data/
+    data/test/
+    outputs/
+    reports/
+    presentation/
+- Global configuration file created:
+    src/config.py
+    (contains parameters and random seed)
+- Environment test file created:
+    test_env.py
+- test_env.py executed successfully
+- outputs/ folder confirmed working
+
+
+WHAT WAS CHANGED
+----------------
+- No existing code modified (initial setup phase)
+
+
+WHAT WAS NOT ADDED YET
+----------------------
+- No simulation engine implemented
+- No robot dynamics implemented
+- No numerical integrator implemented
+- No visualization system implemented
+- No path extraction implemented
+- No swarm logic implemented
+- No optical flow or video processing implemented
+- No report or presentation created
+
+
+NOTES
+-----
+- Python environment fully working
+- All required libraries installed and confirmed
+- Project reproducible via requirements.txt
+- Folder structure ready for development
+- Ready to begin Phase 2 (simulation engine)
