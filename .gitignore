@@ -25,11 +25,12 @@ output/*
 # ==============================
 data/*
 !data/.gitkeep
+!data/test/.gitkeep
+
 
 # ==============================
-# DATA FILES (LOCAL ONLY)
+# LARGE / MEDIA FILES (LOCAL ONLY)
 # ==============================
-data/
 *.mp4
 *.avi
 *.mov
@@ -37,6 +38,7 @@ data/
 *.jpg
 *.jpeg
 *.gif
+
 
 # ==============================
 # IDE FILES
