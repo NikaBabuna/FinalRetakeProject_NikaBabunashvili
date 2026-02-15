@@ -58,3 +58,220 @@ NOTES
 - Project reproducible via requirements.txt
 - Folder structure ready for development
 - Ready to begin Phase 2 (simulation engine)
+
+=============================================================
+PHASE 2 - CORE SIMULATION ENGINE + TESTING INFRASTRUCTURE
+=============================================================
+
+STATUS: COMPLETE AND VALIDATED
+
+This phase implemented the full robot simulation engine, numerical solver,
+visualization system, structured outputs, and automated testing framework.
+All components were tested together and validated using system_tester.py.
+
+-------------------------------------------------------------
+FILES ADDED
+-------------------------------------------------------------
+
+src/core.py
+-----------
+Main simulation engine containing:
+- Robot state initialization
+- Velocity clipping (speed limiting)
+- Attraction force toward target
+- Repulsion force between robots
+- Damping force
+- Total acceleration computation
+- RK2 midpoint numerical integrator
+- Full simulation loop (run_simulation)
+- Optional velocity history storage for testing
+
+Purpose:
+Centralized all simulation logic into a single core module.
+
+
+src/io_utils.py
+---------------
+Utilities for output and project path management:
+- get_project_root()
+- ensure_output_root()
+- create_new_results_dir()
+
+Purpose:
+Automatically create incrementing results folders:
+  /output/results_0001/
+  /output/results_0002/
+and manage file-safe paths.
+
+
+src/viz.py
+----------
+Visualization module:
+- plot_trajectory()
+- Saves trajectory plots into provided results directory
+
+Purpose:
+Standardized visualization saving into structured output folders.
+
+
+system_tester.py
+----------------
+Global automated testing runner:
+- Discovers all test files in /src/test/
+- Runs each test file
+- Creates new results folder per run
+- Stores test artifacts in:
+    /output/results_xxxx/tests/
+- Prints readable PASS/FAIL output
+- Returns exit code:
+    0 = success
+    2 = failure
+
+Purpose:
+Centralized quality-control system for entire project.
+
+
+src/test/_test_utils.py
+-----------------------
+Testing helper context:
+- Standardized PASS/FAIL/INFO printing
+- Provides safe path creation inside results_dir
+- Collects metrics
+
+Purpose:
+Improves readability and consistency across all tests.
+
+
+src/test/test_dynamics_basic.py
+-------------------------------
+Primary Phase 2 validation test:
+Tests:
+1. Robot moves toward target
+2. Speed never exceeds VMAX (true velocity check)
+3. Repulsion increases separation between robots
+
+Outputs:
+- trajectory plots
+- metrics printed
+- PASS/FAIL status returned
+
+Purpose:
+Validates full simulation engine correctness.
+
+
+TESTING BLUEPRINT DOCUMENT
+--------------------------
+A full text blueprint defining:
+- Test discovery rules
+- Test file structure
+- Naming conventions
+- Output conventions
+- Example template
+
+Purpose:
+Ensures consistent test development across future phases.
+
+
+-------------------------------------------------------------
+FILES MODIFIED
+-------------------------------------------------------------
+
+src/config.py
+-------------
+Confirmed global parameters:
+- DT
+- VMAX
+- KP
+- KD
+- KREP
+- RSAFE
+- ROBOT_RADIUS
+- N_ROBOTS
+- random seed
+
+Used consistently across simulation and tests.
+
+
+src/core.py (updates during phase)
+----------------------------------
+- Replaced Euler integrator with RK2 midpoint integrator
+- Added optional velocity history storage for accurate testing
+- Ensured velocity clipping always applied
+- Stabilized numerical behavior
+
+
+src/viz.py (refactored)
+-----------------------
+Changed from direct output dumping to:
+save into provided results_dir
+
+Now integrates with system_tester results folders.
+
+
+-------------------------------------------------------------
+SYSTEM FEATURES IMPLEMENTED
+-------------------------------------------------------------
+
+1. PHYSICS ENGINE
+-----------------
+- Multi-robot support
+- Stable RK2 integration
+- Collision avoidance via repulsion
+- Velocity limiting
+- Damping stabilization
+- Target attraction
+
+2. OUTPUT MANAGEMENT
+--------------------
+- Automatic creation of structured results folders
+- Each run stored separately
+- No overwriting of previous outputs
+
+3. AUTOMATED TESTING
+--------------------
+- System-wide test discovery
+- Standardized test format
+- PASS/FAIL reporting
+- Metrics logging
+- Exit codes for validation
+
+4. QUALITY CONTROL
+------------------
+All Phase 2 components tested together:
+- Simulation correctness
+- Velocity constraints
+- Repulsion behavior
+- Output generation
+- Folder structure integrity
+
+All tests passing.
+
+
+-------------------------------------------------------------
+WHAT WORKS NOW
+-------------------------------------------------------------
+- Full robot motion simulation (IVP system)
+- RK2 numerical integration
+- Multi-robot interaction
+- Stable velocity constraints
+- Visualization pipeline
+- Structured output storage
+- Automated test runner
+- Reproducible simulation runs
+
+
+-------------------------------------------------------------
+NOTES
+-------------------------------------------------------------
+Phase 2 establishes the complete simulation core used by all
+later phases.
+
+All future work (path following, swarm coordination, pedestrian
+navigation) will build on this engine without modifying its
+fundamental structure.
+
+Phase 2 is considered stable and complete.
+
+=============================================================
+END PHASE 2
+=============================================================

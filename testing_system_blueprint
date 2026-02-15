@@ -1,0 +1,210 @@
+=============================================================
+TESTING SYSTEM BLUEPRINT (PROJECTCODE)
+=============================================================
+
+1) PURPOSE
+----------
+This project uses an automated testing runner ("system_tester.py") to run all
+test files under:
+
+  /src/test/
+
+Any Python file whose name starts with "test" and ends with ".py" is treated as
+a test file and will be executed by the system tester.
+
+Each test file is responsible for:
+- declaring what it tests
+- running its checks
+- printing PASS/FAIL information
+- returning a final True/False status to the tester
+
+The system tester then prints a summary and exits with a proper exit code:
+- exit code 0  -> all tests passed
+- exit code 2  -> at least one test failed
+
+
+2) OUTPUT ORGANIZATION
+----------------------
+Each time system_tester.py runs, it creates a new results folder:
+
+  /output/results_0001/
+  /output/results_0002/
+  /output/results_0003/
+  ...
+
+Inside that folder it creates:
+
+  /output/results_XXXX/tests/
+
+All test-generated plots/images/artifacts must be saved inside that tests folder.
+
+This prevents overwriting previous runs and keeps results reproducible.
+
+
+3) HOW TEST DISCOVERY WORKS
+---------------------------
+system_tester.py searches recursively under:
+
+  /src/test/
+
+It finds all matching files:
+- filename starts with "test"
+- filename ends with ".py"
+
+Example files that WILL run:
+- src/test/test_dynamics_basic.py
+- src/test/step2/test_velocity_clip.py
+- src/test/step3/test_path_following.py
+
+Example files that will NOT run:
+- src/test/utils.py
+- src/test/_test_utils.py
+- src/test/helper_test.py   (does not start with "test")
+
+
+4) REQUIRED TEST FILE FORMAT (CONVENTION)
+-----------------------------------------
+Each test file SHOULD follow this standard:
+
+A) Header metadata (required)
+-----------------------------
+TEST_ID           : short stable identifier (example: "P2_CORE_001")
+TEST_NAME         : human readable name
+TEST_DESCRIPTION  : one or two lines describing what the test checks
+
+B) Run function (required)
+--------------------------
+def run(results_dir: str) -> bool
+
+- results_dir is an absolute directory path where artifacts should be saved
+- the function must run its checks
+- it must print PASS/FAIL messages
+- it must return:
+    True  if ALL checks pass
+    False if ANY check fails
+
+C) Optional helpers
+-------------------
+Tests may import TestContext from src/test/_test_utils.py to standardize output.
+This is optional but recommended.
+
+The test file should NOT require manual input.
+The test file should NOT depend on IDE working directory.
+The test file should NOT save outputs outside results_dir.
+
+
+5) RECOMMENDED PRINT FORMAT INSIDE TESTS
+----------------------------------------
+Use consistent, readable prefixes:
+
+  [INFO] ...
+  [PASS] ...
+  [FAIL] ...
+
+Also print key numeric metrics when available. This helps debugging and can be
+copied into the report later.
+
+
+6) TEMPLATE TEST FILE (COPY/PASTE)
+----------------------------------
+Save this as:
+  src/test/test_something.py
+
+(Ensure the filename starts with "test")
+
+-------------------------------------------------------------
+import numpy as np
+
+TEST_ID = "PX_YYYY_000"
+TEST_NAME = "Short descriptive test name"
+TEST_DESCRIPTION = "One sentence describing what this test validates."
+
+def run(results_dir: str) -> bool:
+    ok = True
+
+    print(f"  [INFO] {TEST_ID} - {TEST_NAME}")
+    print(f"  [INFO] {TEST_DESCRIPTION}")
+
+    # ----------------------------
+    # CHECK 1 (example)
+    # ----------------------------
+    try:
+        # Put your test logic here
+        value = 1 + 1
+
+        if value == 2:
+            print("  [PASS] Check 1: basic math works")
+        else:
+            print("  [FAIL] Check 1: expected 2")
+            ok = False
+
+    except Exception as e:
+        print(f"  [FAIL] Check 1 crashed with exception: {e}")
+        ok = False
+
+    # ----------------------------
+    # SAVE ARTIFACTS (example)
+    # ----------------------------
+    # If you create plots/files, save them inside results_dir.
+    # Example:
+    # filepath = os.path.join(results_dir, "artifact_name.png")
+    # plt.savefig(filepath)
+
+    return ok
+-------------------------------------------------------------
+
+
+7) OPTIONAL: USING TestContext (STANDARDIZED OUTPUT)
+-----------------------------------------------------
+If you use the helper context, you will get consistent printing and easy paths.
+
+Example usage:
+
+-------------------------------------------------------------
+from src.test._test_utils import TestContext
+
+def run(results_dir: str) -> bool:
+    ctx = TestContext(results_dir=results_dir)
+
+    ctx.info("Starting test")
+    ctx.pass_("Something succeeded")
+    ctx.fail("Something failed")
+
+    save_path = ctx.path("figure.png")   # ensures correct folder
+    ...
+-------------------------------------------------------------
+
+NOTE:
+To keep system_tester from running the helper file as a test, name it:
+
+  _test_utils.py
+
+(leading underscore prevents it from matching "test*.py")
+
+
+8) WHAT system_tester.py EXPECTS
+--------------------------------
+For each discovered test file, system_tester.py does:
+
+- import the module
+- if module has run(results_dir): call it
+- if run() returns True -> PASS
+- if run() returns False -> FAIL
+- if import or run crashes -> FAIL
+
+Then it prints a summary and exits with code 0 or 2.
+
+
+9) HOW TO RUN ALL TESTS
+-----------------------
+From project root:
+
+  python system_tester.py
+
+Results will be placed in:
+
+  /output/results_XXXX/tests/
+
+=============================================================
+END OF TESTING SYSTEM BLUEPRINT
+=============================================================
