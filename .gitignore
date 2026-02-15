@@ -15,10 +15,16 @@ venv/
 env/
 
 # ==============================
-# OUTPUTS (DO NOT COMMIT)
+# OUTPUTS (keep folder, ignore contents)
 # ==============================
-output/
-outputs/
+output/*
+!output/.gitkeep
+
+# ==============================
+# DATA (keep folder, ignore contents)
+# ==============================
+data/*
+!data/.gitkeep
 
 # ==============================
 # DATA FILES (LOCAL ONLY)
