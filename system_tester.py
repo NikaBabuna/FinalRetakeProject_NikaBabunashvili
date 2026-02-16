@@ -3,7 +3,7 @@ import sys
 import importlib.util
 from typing import List, Tuple
 
-from src.io_utils import ensure_output_root, create_new_results_dir
+from src.utils.io_utils import ensure_output_root, create_new_results_dir
 
 
 def discover_test_files(test_root: str) -> List[str]:
@@ -48,6 +48,10 @@ def run_one_test(module, results_dir: str) -> Tuple[str, bool, str]:
             passed = bool(module.run(results_dir))
             return name, passed, "Used run(results_dir)"
         except Exception as e:
+            import traceback
+            print("\n--- FULL TRACEBACK ---")
+            traceback.print_exc()
+            print("--- END TRACEBACK ---\n")
             return name, False, f"Exception: {e}"
 
     # fallback: if no run() exists, attempt to execute module-level code
@@ -57,6 +61,8 @@ def run_one_test(module, results_dir: str) -> Tuple[str, bool, str]:
         # if it didn't crash, consider it pass
         return name, True, "No run() found; passed by import execution"
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return name, False, f"Exception during import execution: {e}"
 
 

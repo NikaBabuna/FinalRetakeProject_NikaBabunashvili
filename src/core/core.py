@@ -85,15 +85,29 @@ def repulsion_force(positions: np.ndarray) -> np.ndarray:
 
 def compute_acceleration(positions: np.ndarray,
                          velocities: np.ndarray,
-                         target: np.ndarray) -> np.ndarray:
+                         target_or_force: np.ndarray) -> np.ndarray:
     """
-    a = attraction + repulsion + damping
+    If target_or_force has shape (2,), treat as target position.
+    If target_or_force has shape (N,2), treat as external force directly.
     """
+    u = np.asarray(target_or_force)
+
+    # Case 1: external forces passed in (N,2)
+    if u.ndim == 2 and u.shape == positions.shape:
+        return (
+            u
+            + repulsion_force(positions)
+            + damping_force(velocities)
+        )
+
+    # Case 2: target position passed in (2,)
+    target = u.reshape(2)
     return (
         attraction_force(positions, target)
         + repulsion_force(positions)
         + damping_force(velocities)
     )
+
 
 
 # ==================================================

@@ -275,3 +275,328 @@ Phase 2 is considered stable and complete.
 =============================================================
 END PHASE 2
 =============================================================
+
+=============================================================
+PHASE 3 - MAP PROCESSING, SPLINE PATH & PHYSICS-BASED PATH FOLLOWING
+=============================================================
+
+STATUS: COMPLETE AND FULLY VALIDATED
+
+This phase implemented the full path-extraction pipeline from map input to
+physics-based robot path following with formal validation and visualization.
+
+All modules are now integrated into the main simulation engine and verified
+through automated system testing.
+
+-------------------------------------------------------------
+FILES ADDED
+-------------------------------------------------------------
+
+src/map_tools/map_loader.py
+----------------------------
+Loads map image and provides access to map dimensions and pixel data.
+
+Purpose:
+Centralized map loading and validation for all later processing steps.
+
+
+src/map_tools/map_click_ab.py
+-----------------------------
+Interactive UI allowing user to select start (A) and end (B) points.
+
+Features:
+- Click A and B on map
+- ESC cancel support
+- Stores coordinates in config
+- Reuses stored A/B if already defined
+
+Purpose:
+Provides reproducible and user-controlled path endpoints.
+
+
+src/path_extraction.py
+----------------------
+Extracts walkable path from map image.
+
+Features:
+- Binary mask extraction
+- Walkable region detection
+- A/B validation inside path
+- Centerline extraction from path mask
+
+Purpose:
+Transforms map image into navigable path representation.
+
+
+src/centerline.py
+-----------------
+Processes extracted path mask to generate ordered centerline.
+
+Features:
+- Skeletonization of path
+- Ordered centerline point extraction
+- Ensures continuous path
+- Debug visualization support
+
+Purpose:
+Creates geometric path backbone used for spline fitting.
+
+
+src/spline_path.py
+------------------
+Builds continuous spline representation from centerline.
+
+Features:
+- Arc-length parameterized spline
+- p(s): position along path
+- tangent(s): unit tangent
+- closest_s(x): nearest path coordinate
+- Path length computation
+
+Purpose:
+Provides continuous path representation for controller and constraints.
+
+
+src/path_controller.py
+----------------------
+Moving-target path following controller.
+
+Features:
+- Progress parameter along spline
+- Closest point projection
+- Lookahead target generation
+- Stable forward progression
+
+Purpose:
+Generates dynamic target for robot to follow spline smoothly.
+
+
+src/constraints.py
+------------------
+Path boundary and corridor validation.
+
+Features:
+- distance_to_path()
+- is_inside_path()
+- Border violation measurement
+- Corridor width handling
+
+Purpose:
+Ensures robot remains within walkable path region.
+
+
+src/viz.py (extended)
+---------------------
+Added path visualization utilities:
+
+- render_path_following()
+- Centerline plotting
+- Robot trajectory plotting
+- GIF generation
+- Debug overlays
+
+Purpose:
+Unified visualization for debugging and validation.
+
+
+-------------------------------------------------------------
+FILES ADDED - TESTING
+-------------------------------------------------------------
+
+src/test/test_point_extraction.py
+---------------------------------
+Validates map loading, A/B selection, mask extraction, and centerline.
+
+Outputs debug images for verification.
+
+
+src/test/test_spline_path.py
+----------------------------
+Validates spline construction and geometry functions:
+- Finite endpoints
+- Normalized tangents
+- closest_s correctness
+- Spline length sanity
+
+
+src/test/test_path_controller.py
+--------------------------------
+Validates controller outputs:
+- Target numeric validity
+- Progress initialization
+- Stable parameter updates
+
+
+src/test/test_constraints.py
+----------------------------
+Validates corridor logic:
+- Distance to path correctness
+- Inside/outside detection
+- Border tolerance checks
+
+
+src/test/test_path_following.py
+-------------------------------
+Simulates robot following spline using physics engine.
+
+Confirms robot can follow entire path visually and numerically.
+
+
+src/test/test_subproblem_1_validation.py
+----------------------------------------
+Formal validation of full system.
+
+Checks:
+- Robot reaches end of spline
+- Stays within path borders
+- Uses real RK2 physics
+- Uses controller targets
+- Progress measured via closest_s()
+
+Simulation length automatically computed using:
+- Path length
+- VMAX
+- DT
+
+Ensures consistent validation independent of map.
+
+
+src/test/test_visualization.py
+------------------------------
+Validates visualization pipeline and GIF export.
+
+
+-------------------------------------------------------------
+FILES MODIFIED
+-------------------------------------------------------------
+
+src/config.py
+-------------
+Added global path and map parameters:
+- PATH_WIDTH / PATH_WIDTH_PIX
+- Map path configuration
+- A/B storage
+- Controller tuning values
+
+Ensures consistent configuration across modules.
+
+
+src/core.py
+-----------
+Physics engine reused from Phase 2.
+
+Confirmed compatibility with:
+- Path controller targets
+- Long-duration simulation
+- Stable RK2 integration
+
+
+src/viz.py
+----------
+Extended to support:
+- Map overlays
+- Centerline rendering
+- Path following animation
+- Validation plotting
+
+
+system_tester.py
+----------------
+Now runs full Phase 3 test suite automatically.
+
+Produces:
+output/results_xxxx/tests/
+
+with all debug images and animations.
+
+
+-------------------------------------------------------------
+SYSTEM FEATURES IMPLEMENTED
+-------------------------------------------------------------
+
+1. MAP -> PATH PIPELINE
+-----------------------
+Map image -> mask -> centerline -> spline -> controller -> robot motion
+
+
+2. CONTINUOUS SPLINE PATH
+-------------------------
+Arc-length parameterized path
+Closest-point projection
+Smooth tangents
+Lookahead targeting
+
+
+3. PHYSICS-BASED PATH FOLLOWING
+-------------------------------
+Robot follows spline using real RK2 dynamics
+NOT kinematic teleporting
+Fully compatible with Phase 2 engine
+
+
+4. PATH CONSTRAINT VALIDATION
+-----------------------------
+Distance-to-path checks
+Inside/outside detection
+Border violation metrics
+
+
+5. FORMAL SYSTEM VALIDATION
+---------------------------
+Automated test confirms:
+- Robot reaches goal
+- Remains inside corridor
+- Simulation stable for full path
+- Works across multiple A/B selections
+
+
+6. VISUAL DEBUGGING
+-------------------
+Generated artifacts:
+- Centerline debug images
+- Mask overlays
+- Path following plots
+- Validation plots
+- GIF animations
+
+
+-------------------------------------------------------------
+WHAT WORKS NOW
+-------------------------------------------------------------
+
+- Map loading and validation
+- Interactive A/B selection
+- Path mask extraction
+- Centerline extraction
+- Continuous spline generation
+- Moving-target path controller
+- Physics-based robot following
+- Corridor constraint enforcement
+- Full visualization pipeline
+- Automated multi-stage testing
+- Formal path-following validation
+
+
+-------------------------------------------------------------
+NOTES
+-------------------------------------------------------------
+
+Phase 3 completes the full single-robot navigation pipeline from
+map input to validated path following using real physics.
+
+All modules are now stable, integrated, and tested through the
+system tester.
+
+This phase establishes the foundation required for:
+
+- Multi-robot path following
+- Swarm coordination
+- Dynamic obstacle handling
+- Pedestrian simulation
+- Video-based navigation
+
+Phase 3 is considered COMPLETE and STABLE.
+
+=============================================================
+END PHASE 3
+=============================================================
