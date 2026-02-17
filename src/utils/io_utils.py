@@ -1,15 +1,18 @@
+from pathlib import Path
 import os
 import re
 
-
 def get_project_root() -> str:
     """
-    Assumes this file is in src/.
+    Returns the repository root folder (the one containing both 'src' and 'data').
+    Works no matter what your working directory is.
     """
-    current_file = os.path.abspath(__file__)
-    src_folder = os.path.dirname(current_file)
-    project_root = os.path.dirname(src_folder)
-    return project_root
+    here = Path(__file__).resolve()
+    for parent in here.parents:
+        if (parent / "src").is_dir() and (parent / "data").is_dir():
+            return str(parent)
+    # fallback (shouldn't happen, but prevents crashes)
+    return str(here.parents[2])
 
 
 def ensure_output_root(folder_name: str = "output") -> str:

@@ -9,7 +9,7 @@ from src import config
 
 TEST_ID = "P3_STEP5_001"
 TEST_NAME = "Path constraint validation"
-TEST_DESCRIPTION = "Checks distance-to-path and inside-path logic."
+TEST_DESCRIPTION = "Checks distance-to-path and inside-path logic (orientation-independent)."
 
 
 def run(results_dir: str) -> bool:
@@ -29,14 +29,23 @@ def run(results_dir: str) -> bool:
         ctx.fail(f"Spline build failed: {e}")
         return False
 
+    # corridor half-width in pixels
+    path_width = float(getattr(config, "PATH_WIDTH_PIX", getattr(config, "PATH_WIDTH", 60.0)))
+    half_w = 0.5 * path_width
+
     # ------------------------------------------------
-    # Pick a point ON path
+    # Pick a point ON path + local normal direction
     # ------------------------------------------------
-    s_mid = spline.length * 0.5
+    s_mid = float(spline.length) * 0.5
     p_on = spline.pos(s_mid)
 
-    d = distance_to_path(p_on)
+    t = spline.tangent(s_mid)
+    n = np.array([-t[1], t[0]], dtype=float)  # unit normal
 
+    # ------------------------------------------------
+    # ON PATH: distance ~0 and inside True
+    # ------------------------------------------------
+    d = distance_to_path(p_on)
     if d < 1e-3:
         ctx.pass_("Distance near zero for point on path")
     else:
@@ -50,26 +59,25 @@ def run(results_dir: str) -> bool:
         ok = False
 
     # ------------------------------------------------
-    # Point slightly offset but still inside
+    # Slightly offset along NORMAL but still inside
     # ------------------------------------------------
-    offset_inside = p_on + np.array([5.0, 0.0])
+    offset_inside = p_on + (0.25 * half_w) * n
     d2 = distance_to_path(offset_inside)
-
     ctx.info(f"Distance (offset inside) = {d2:.2f}")
 
     if is_inside_path(offset_inside):
-        ctx.pass_("Offset point still inside")
+        ctx.pass_("Offset point still inside (normal direction)")
     else:
         ctx.fail("Offset point incorrectly outside")
         ok = False
 
     # ------------------------------------------------
-    # Point clearly outside
+    # Clearly outside along NORMAL
     # ------------------------------------------------
-    offset_out = p_on + np.array([config.PATH_WIDTH * 2.0, 0.0])
+    offset_out = p_on + (2.2 * half_w) * n
 
     if not is_inside_path(offset_out):
-        ctx.pass_("Far point correctly detected outside")
+        ctx.pass_("Far point correctly detected outside (normal direction)")
     else:
         ctx.fail("Far point incorrectly inside")
         ok = False

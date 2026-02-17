@@ -2,7 +2,9 @@
 PROJECT DEVLOG
 --------------------------------------------------
 
+=============================================================
 PHASE 1 - ENVIRONMENT AND PROJECT SETUP
+=============================================================
 
 Status: COMPLETE
 
@@ -22,7 +24,7 @@ WHAT WAS ADDED
     src/
     data/
     data/test/
-    outputs/
+    output/
     reports/
     presentation/
 - Global configuration file created:
@@ -31,7 +33,7 @@ WHAT WAS ADDED
 - Environment test file created:
     test_env.py
 - test_env.py executed successfully
-- outputs/ folder confirmed working
+- output/ folder confirmed working
 
 
 WHAT WAS CHANGED
@@ -60,6 +62,11 @@ NOTES
 - Ready to begin Phase 2 (simulation engine)
 
 =============================================================
+END PHASE 1
+=============================================================
+
+
+=============================================================
 PHASE 2 - CORE SIMULATION ENGINE + TESTING INFRASTRUCTURE
 =============================================================
 
@@ -69,12 +76,17 @@ This phase implemented the full robot simulation engine, numerical solver,
 visualization system, structured outputs, and automated testing framework.
 All components were tested together and validated using system_tester.py.
 
+NOTE (STRUCTURE FIX):
+- The core engine now lives under src/core/ (package layout), but this section
+  still describes the same functionality originally implemented in a single core module.
+
+
 -------------------------------------------------------------
 FILES ADDED
 -------------------------------------------------------------
 
-src/core.py
------------
+src/core/core.py
+----------------
 Main simulation engine containing:
 - Robot state initialization
 - Velocity clipping (speed limiting)
@@ -83,45 +95,40 @@ Main simulation engine containing:
 - Damping force
 - Total acceleration computation
 - RK2 midpoint numerical integrator
-- Full simulation loop (run_simulation)
-- Optional velocity history storage for testing
+- Full simulation loop / stepping utilities
 
 Purpose:
-Centralized all simulation logic into a single core module.
+Centralized all simulation logic into a stable core module.
 
 
-src/io_utils.py
----------------
+utils/io_utils.py  (and/or src/utils/io_utils.py depending on runner imports)
+----------------------------------------------------------------------------
 Utilities for output and project path management:
 - get_project_root()
 - ensure_output_root()
-- create_new_results_dir()
+- create_new_results_dir(output_root)
 
 Purpose:
 Automatically create incrementing results folders:
-  /output/results_0001/
-  /output/results_0002/
+  output/results_0001/
+  output/results_0002/
 and manage file-safe paths.
 
 
-src/viz.py
-----------
-Visualization module:
-- plot_trajectory()
-- Saves trajectory plots into provided results directory
-
-Purpose:
-Standardized visualization saving into structured output folders.
+(Visualization module)
+----------------------
+A visualization layer was added and later extended in Phase 3/4.
+(Exact file location changed during refactors; functionality is preserved.)
 
 
 system_tester.py
 ----------------
 Global automated testing runner:
-- Discovers all test files in /src/test/
+- Discovers all test files in src/test/
 - Runs each test file
 - Creates new results folder per run
 - Stores test artifacts in:
-    /output/results_xxxx/tests/
+    output/results_xxxx/tests/
 - Prints readable PASS/FAIL output
 - Returns exit code:
     0 = success
@@ -192,20 +199,11 @@ Confirmed global parameters:
 Used consistently across simulation and tests.
 
 
-src/core.py (updates during phase)
-----------------------------------
+src/core/core.py (updates during phase)
+---------------------------------------
 - Replaced Euler integrator with RK2 midpoint integrator
-- Added optional velocity history storage for accurate testing
 - Ensured velocity clipping always applied
 - Stabilized numerical behavior
-
-
-src/viz.py (refactored)
------------------------
-Changed from direct output dumping to:
-save into provided results_dir
-
-Now integrates with system_tester results folders.
 
 
 -------------------------------------------------------------
@@ -254,7 +252,7 @@ WHAT WORKS NOW
 - RK2 numerical integration
 - Multi-robot interaction
 - Stable velocity constraints
-- Visualization pipeline
+- Visualization pipeline (basic)
 - Structured output storage
 - Automated test runner
 - Reproducible simulation runs
@@ -276,6 +274,7 @@ Phase 2 is considered stable and complete.
 END PHASE 2
 =============================================================
 
+
 =============================================================
 PHASE 3 - MAP PROCESSING, SPLINE PATH & PHYSICS-BASED PATH FOLLOWING
 =============================================================
@@ -285,15 +284,17 @@ STATUS: COMPLETE AND FULLY VALIDATED
 This phase implemented the full path-extraction pipeline from map input to
 physics-based robot path following with formal validation and visualization.
 
-All modules are now integrated into the main simulation engine and verified
-through automated system testing.
+NOTE (STRUCTURE FIX):
+- Path and controller modules now live under src/path/ (package layout).
+- The devlog entries below refer to the same components; only paths changed.
+
 
 -------------------------------------------------------------
 FILES ADDED
 -------------------------------------------------------------
 
 src/map_tools/map_loader.py
-----------------------------
+--------------------------
 Loads map image and provides access to map dimensions and pixel data.
 
 Purpose:
@@ -301,21 +302,20 @@ Centralized map loading and validation for all later processing steps.
 
 
 src/map_tools/map_click_ab.py
------------------------------
+----------------------------
 Interactive UI allowing user to select start (A) and end (B) points.
 
 Features:
 - Click A and B on map
 - ESC cancel support
-- Stores coordinates in config
-- Reuses stored A/B if already defined
+- Stores coordinates for reuse
 
 Purpose:
 Provides reproducible and user-controlled path endpoints.
 
 
-src/path_extraction.py
-----------------------
+src/path/path_extraction.py
+--------------------------
 Extracts walkable path from map image.
 
 Features:
@@ -328,8 +328,8 @@ Purpose:
 Transforms map image into navigable path representation.
 
 
-src/centerline.py
------------------
+src/path/centerline.py
+----------------------
 Processes extracted path mask to generate ordered centerline.
 
 Features:
@@ -342,8 +342,8 @@ Purpose:
 Creates geometric path backbone used for spline fitting.
 
 
-src/spline_path.py
-------------------
+src/path/spline_path.py
+-----------------------
 Builds continuous spline representation from centerline.
 
 Features:
@@ -357,8 +357,8 @@ Purpose:
 Provides continuous path representation for controller and constraints.
 
 
-src/path_controller.py
-----------------------
+src/path/path_controller.py
+--------------------------
 Moving-target path following controller.
 
 Features:
@@ -371,8 +371,8 @@ Purpose:
 Generates dynamic target for robot to follow spline smoothly.
 
 
-src/constraints.py
-------------------
+src/path/constraints.py
+-----------------------
 Path boundary and corridor validation.
 
 Features:
@@ -385,18 +385,13 @@ Purpose:
 Ensures robot remains within walkable path region.
 
 
-src/viz.py (extended)
----------------------
-Added path visualization utilities:
-
-- render_path_following()
-- Centerline plotting
-- Robot trajectory plotting
-- GIF generation
-- Debug overlays
-
-Purpose:
-Unified visualization for debugging and validation.
+(Visualization utilities)
+------------------------
+Visualization utilities were extended to support:
+- Map overlays
+- Centerline rendering
+- Path following animation / GIF export
+- Validation plotting
 
 
 -------------------------------------------------------------
@@ -404,7 +399,7 @@ FILES ADDED - TESTING
 -------------------------------------------------------------
 
 src/test/test_point_extraction.py
----------------------------------
+--------------------------------
 Validates map loading, A/B selection, mask extraction, and centerline.
 
 Outputs debug images for verification.
@@ -475,29 +470,10 @@ src/config.py
 Added global path and map parameters:
 - PATH_WIDTH / PATH_WIDTH_PIX
 - Map path configuration
-- A/B storage
+- A/B storage behavior
 - Controller tuning values
 
 Ensures consistent configuration across modules.
-
-
-src/core.py
------------
-Physics engine reused from Phase 2.
-
-Confirmed compatibility with:
-- Path controller targets
-- Long-duration simulation
-- Stable RK2 integration
-
-
-src/viz.py
-----------
-Extended to support:
-- Map overlays
-- Centerline rendering
-- Path following animation
-- Validation plotting
 
 
 system_tester.py
@@ -580,23 +556,341 @@ WHAT WORKS NOW
 -------------------------------------------------------------
 NOTES
 -------------------------------------------------------------
-
 Phase 3 completes the full single-robot navigation pipeline from
 map input to validated path following using real physics.
 
 All modules are now stable, integrated, and tested through the
 system tester.
 
-This phase establishes the foundation required for:
-
-- Multi-robot path following
-- Swarm coordination
-- Dynamic obstacle handling
-- Pedestrian simulation
-- Video-based navigation
-
 Phase 3 is considered COMPLETE and STABLE.
 
 =============================================================
 END PHASE 3
+=============================================================
+
+
+=============================================================
+PHASE 4 - TWO-WAY SWARM SIMULATION, COLLISION HANDLING, AND VISUALIZATION
+=============================================================
+
+STATUS: COMPLETE AND VALIDATED (system_tester green on full suite)
+
+This phase extended the project from single-robot path following to a
+multi-robot swarm traveling in BOTH directions on the same corridor.
+It added spawn logic, two-way control (A->B and B->A simultaneously),
+collision detection, border repulsion integration for swarms, tuning tools,
+a clean two-way visualization (GIF), and a full Phase 4 test suite.
+
+-------------------------------------------------------------
+FILES ADDED
+-------------------------------------------------------------
+
+src/swarm/__init__.py
+--------------------
+Swarm package initializer.
+
+
+src/swarm/spawn.py
+------------------
+Swarm spawning and initialization utilities.
+
+What it provides (canonical API expected by tests/runners):
+- spawn_swarm_state(spline, N=None, seed=None)
+    returns (positions, velocities, groups)
+- spawn_swarm_positions(spline, N=None, seed=None)
+    returns (positions, groups)
+- spawn_swarm_near_A_B(spline, N=None, seed=None, return_velocities=True)
+    returns (positions, velocities, groups) or (positions, groups)
+
+Implementation details:
+- Spawns N/2 robots near s ~ 0 (A-side) and N/2 near s ~ L (B-side)
+- Randomizes across corridor width using spline normal
+- Optionally enforces corridor validity via is_inside_path() if available
+- Velocities are initialized to EXACTLY zero
+
+
+src/swarm/collisions.py
+-----------------------
+Collision detection utility:
+- detect_collisions(positions)
+Returns colliding robot index pairs (and distances) based on ROBOT_RADIUS / RSAFE rules.
+
+
+src/swarm/sim.py
+----------------
+Swarm simulation entry points:
+
+- ReversedSpline wrapper:
+  Allows reuse of PathController for B->A by reversing arc-length parameter.
+
+- simulate_swarm_oneway_A_to_B(...)
+- simulate_swarm_oneway_B_to_A(...)
+- simulate_swarm_twoway(...)
+
+Key behaviors:
+- Per-robot PathController targets
+- RK2 integration via core engine
+- Border repulsion force applied during swarm stepping
+- Optional collision logging support (backward-compatible flags)
+
+
+src/swarm/viz_swarm.py
+----------------------
+Two-way swarm visualization renderer.
+
+What it renders:
+- Spline centerline
+- Optional corridor bounds (inner borders accounting for robot radius)
+- A->B robots and B->A robots as separate scatter groups
+- Collision highlight rings (if collisions occur)
+- Collision counter text overlay
+- Trailing motion traces for readability
+- GIF export (implemented in a memory-safe way to avoid storing all frames)
+
+
+-------------------------------------------------------------
+FILES ADDED (RUNNERS / SCRIPTS)
+-------------------------------------------------------------
+
+run_phase4_tuning.py
+--------------------
+Batch/tuning script used to sweep N and/or parameters and log:
+- collision counts
+- first collision timestep
+Used to find settings that reach "collision count = 0".
+
+
+run_phase4_visualize.py
+-----------------------
+Generates a polished two-way swarm visualization GIF for the checkbox:
+- Spawns robots near A and B
+- Runs two-way simulation
+- Exports GIF to a results folder
+
+
+run_phase4_demo.py
+------------------
+Convenience demo runner to quickly showcase the phase 4 behavior
+(without running the full system tester).
+
+
+run_all.py
+----------
+Convenience entry point to run a full pipeline (optional helper).
+
+
+-------------------------------------------------------------
+FILES ADDED - TESTING (PHASE 4 SUITE)
+-------------------------------------------------------------
+
+src/test/test_swarm_spawn.py
+---------------------------
+Validates:
+- Correct shapes
+- Correct group split (+1 then -1)
+- A-side closer to A than B, B-side closer to B than A
+- Spawn has variation (not degenerate)
+- Optional inside-path check
+Saves: swarm_spawn_debug.png
+
+
+src/test/test_swarm_initial_velocities.py
+----------------------------------------
+Validates:
+- spawn_swarm_state returns velocities all exactly zero
+
+
+src/test/test_swarm_oneway_A_to_B.py
+-----------------------------------
+Validates:
+- A-side robots make strong forward progress along spline (mean s increases)
+Saves: swarm_oneway_A_to_B.png
+
+
+src/test/test_swarm_oneway_B_to_A.py
+-----------------------------------
+Validates:
+- B-side robots make strong backward progress (mean s decreases in original frame)
+Saves: swarm_oneway_B_to_A.png
+
+
+src/test/test_swarm_repulsion.py
+-------------------------------
+Validates:
+- Repulsion increases separation when robots start too close
+
+
+src/test/test_border_repulsion.py
+--------------------------------
+Validates:
+- Border force is ~0 inside corridor
+- Near-border force pushes inward (dot(force, outward_normal) < 0)
+
+
+src/test/test_swarm_twoway_same_timestep.py
+------------------------------------------
+Validates:
+- Both A->B and B->A groups move on the FIRST timestep
+Requires:
+- simulate_swarm_twoway(..., log_collisions=True) to be accepted
+
+
+src/test/test_swarm_twoway_inside_corridor.py
+---------------------------------------------
+Validates:
+- Two-way swarm stays inside corridor (>= 98% sampled points inside)
+Saves: twoway_outside_counts.png
+
+
+src/test/test_swarm_twoway_no_collisions.py
+-------------------------------------------
+Validates:
+- Both groups progress correctly in opposite directions
+- No collisions (sampled) and min distance stays safe
+Saves: twoway_progress_mean_s.png
+
+
+src/test/test_swarm_twoway_gif_export.py
+---------------------------------------
+Validates:
+- Two-way swarm GIF is exported
+- File exists and is non-trivial in size (> 50KB)
+Prints progress while writing frames (memory-safe export)
+
+
+-------------------------------------------------------------
+FILES MODIFIED (IMPORTANT FIXES / INTEGRATION)
+-------------------------------------------------------------
+
+src/path/constraints.py
+-----------------------
+- Updated inside/outside logic to be orientation-independent:
+  "offset inside" and "far outside" checks now work regardless of normal sign.
+- Stabilized distance-to-path and inside-path consistency used by swarm tests.
+
+
+src/map_tools/map_click_ab.py  and A/B persistence behavior
+----------------------------------------------------------
+- Fixed the selection UI behavior to prevent repeatedly re-opening after choosing A and B.
+- Added/confirmed A/B persistence via:
+    data/ab_points.json
+- Added/confirmed FORCE_AB_RESELECT behavior:
+  If FORCE_AB_RESELECT=True, UI forces a fresh selection and then auto-resets to False
+  so tests/runs do not keep prompting in the same run.
+
+
+utils/io_utils.py (and/or src/utils/io_utils.py)
+-----------------------------------------------
+- Confirmed create_new_results_dir(output_root) signature.
+- Updated runners to pass output_root returned by ensure_output_root().
+
+
+src/swarm/sim.py
+----------------
+- Removed earlier duplicate/overlapping definitions and standardized outputs.
+- Ensured simulation functions always return homogeneous numpy arrays:
+    traj shape = (steps+1, N, 2)
+- Added backward-compatible argument support:
+    log_collisions (accepted by tests)
+    return_collision_log / collision logging support
+
+
+src/swarm/viz_swarm.py
+----------------------
+- Improved robustness:
+  - Converts inputs to numpy arrays with strict shapes
+  - Corridor bounds computed from spline tangents
+- Improved aesthetics:
+  - Clear legend, grid, equal aspect
+  - Direction-separated robot colors
+  - Trails + collision rings + counters
+- Fixed GIF export stability (avoids MemoryError by not keeping all frames in memory)
+
+
+src/config.py
+-------------
+- Added/confirmed Phase 4 parameters used by swarm:
+  - PATH_WIDTH / PATH_WIDTH_PIX
+  - ROBOT_RADIUS, RSAFE, KREP
+  - N_ROBOTS
+  - SPAWN_MARGIN (optional)
+  - SPAWN_S_SPAN (optional)
+  - FORCE_AB_RESELECT (A/B UI forcing)
+
+
+-------------------------------------------------------------
+SYSTEM FEATURES IMPLEMENTED
+-------------------------------------------------------------
+
+1. TWO-WAY SWARM MOTION
+-----------------------
+- Half robots travel A->B, half travel B->A simultaneously
+- B->A implemented by reversing spline parameterization (ReversedSpline)
+- Same timestep start for both groups (validated)
+
+
+2. SWARM INITIALIZATION
+-----------------------
+- Deterministic seeding support
+- Spawns near endpoints with corridor-normal offsets
+- Initial velocities always exactly zero (validated)
+
+
+3. BORDER COMPLIANCE
+--------------------
+- Border repulsion integrated into swarm stepping
+- Swarm stays within corridor at high sampled ratio (validated)
+
+
+4. COLLISION DETECTION AND AVOIDANCE
+------------------------------------
+- Collision detection (pairs) available each frame
+- Repulsion and parameter tuning used to achieve collision count = 0 in runs/tests
+
+
+5. SWARM VISUALIZATION
+----------------------
+- Two-way GIF shows:
+  - both-direction motion
+  - optional corridor overlay
+  - collision circles + collision counter
+  - trails for readability
+- Export designed to be stable for longer simulations
+
+
+6. PHASE 4 TEST COVERAGE
+------------------------
+- Full automated test suite added for:
+  spawn, velocities, oneway progress, two-way progress, corridor adherence,
+  collision behavior, border force correctness, same-timestep start, GIF export
+
+
+-------------------------------------------------------------
+WHAT WORKS NOW
+-------------------------------------------------------------
+- A/B selection and persistence
+- Single-robot validated path following (Phase 3)
+- Multi-robot swarm spawning at both ends
+- Two-way swarm simulation (A->B and B->A together)
+- Border repulsion for swarms
+- Collision detection and tuning pipeline
+- Two-way visualization on the map with exportable GIF
+- Full system_tester run producing clean artifacts in output/results_xxxx/tests/
+
+
+-------------------------------------------------------------
+NOTES
+-------------------------------------------------------------
+- The project now follows a clear package layout:
+    src/core/
+    src/path/
+    src/map_tools/
+    src/swarm/
+    src/test/
+- output folder naming is now consistently "output/" (not "outputs/").
+- A/B points persist in data/ab_points.json to avoid repeated UI prompts.
+- FORCE_AB_RESELECT can be toggled to force a fresh A/B selection when needed.
+
+=============================================================
+END PHASE 4
 =============================================================
