@@ -894,3 +894,409 @@ NOTES
 =============================================================
 END PHASE 4
 =============================================================
+
+=============================================================
+PHASE 5 - PEDESTRIAN FLOW NAVIGATION (VIDEO + OPTICAL FLOW + REPULSION)
+=============================================================
+
+STATUS: COMPLETE (FUNCTIONAL) + TUNABLE
+(End-to-end pipeline exists: video -> flow/detection/tracking -> robot mission runs -> saved overlays + logs.
+Final behavior quality depends on tuning P5_* parameters.)
+
+-------------------------------------------------------------
+FILES ADDED
+-------------------------------------------------------------
+
+src/phase5/video_frames.py
+--------------------------
+Frame extraction pipeline for pedestrian videos.
+
+What it provides:
+- extract_frames(...):
+  - loads a video from /data (or passed path)
+  - samples frames with stride and optional max_seconds
+  - optional resizing (keeps aspect ratio)
+  - writes frames into the current results_dir
+  - returns metadata:
+      frames_dir, frame_paths, fps, out_hw, etc.
+
+Purpose:
+Creates a deterministic, test-friendly frame sequence for optical flow + missions.
+
+
+src/phase5/optical_flow.py
+--------------------------
+Dense optical flow utilities (OpenCV).
+
+What it provides:
+- compute_dense_flow(prev_gray, next_gray, method="farneback"/"dis")
+- optional helpers for:
+  - saturation / clipping
+  - flow visualization (HSV)
+  - saving per-step flow fields (.npy) and debug images
+
+Purpose:
+Produces the dense (u,v) velocity field used by the robot and stored for proof/debug.
+
+
+src/phase5/ped_detect.py
+------------------------
+Background-subtraction based pedestrian detection (MOG2).
+
+What it provides:
+- PedestrianDetectorMOG2(...)
+- detect(frame) -> bounding boxes
+- boxes_to_centroids(boxes) -> (N,2)
+
+Purpose:
+Obtains pedestrian positions (x_j(t)) used for repulsion and tracking.
+
+
+src/phase5/ped_track.py
+------------------------
+Rough pedestrian tracking to keep IDs stable over short time windows.
+
+What it provides (typical):
+- NearestNeighborTracker(...) or similar
+- update(boxes, centroids) -> tracks with IDs + filtered centroids
+
+Purpose:
+Stabilizes detections frame-to-frame so repulsion uses smoother point sets and
+the video overlay is readable (IDs don’t reset every frame).
+
+
+src/phase5/repulsion.py
+-----------------------
+Pedestrian repulsion model.
+
+What it provides:
+- repulsion_force(robot_xy, points, rsafe, krep, gamma, max_force, ...)
+- min_distance(robot_xy, points)
+
+Purpose:
+Computes the avoidance term pushing the robot away from pedestrian centroids and
+logs minimum safety distance over time.
+
+
+src/phase5/missions.py
+----------------------
+Mission definitions (start/goal for video navigation).
+
+What it provides:
+- make_mission_left_to_right(H,W,...)
+- make_mission_right_to_left(H,W,...)
+- Mission dataclass (name, start_xy, goal_xy)
+
+Purpose:
+Standardizes the two required runs:
+  1) left -> right
+  2) right -> left
+
+
+src/phase5/vt_dynamics.py
+-------------------------
+VT (velocity tracking) dynamics integrator utilities.
+
+What it provides:
+- VTParams(...) container (kv, kd, rsafe, krep, etc.)
+- vt_derivative(state, flow, ped_points_t, params, goal_xy)
+- rk2_step(...) for stable integration
+
+Purpose:
+Separates dynamics math from mission runner logic and provides testable,
+stable numerical integration.
+
+
+src/phase5/run_missions.py   (or equivalent runner under src/phase5/)
+---------------------------------------------------------------------
+Full Phase 5 mission runner used by tests and demos.
+
+What it produces per mission:
+- overlay video (.mp4)
+- trajectory CSV (x,y,vx,vy over time)
+- min-distance CSV (robot->pedestrian minimum distance over time)
+- summary TXT with key settings + metrics
+
+Purpose:
+One command to generate the Subproblem 3 deliverables.
+
+
+-------------------------------------------------------------
+FILES ADDED - TESTING (PHASE 5 SUITE)
+-------------------------------------------------------------
+
+src/test/test_phase5_video_frames.py
+------------------------------------
+Validates:
+- frames extracted inside results_dir
+- resizing works
+- at least a few frames exist
+- metadata sanity
+
+
+src/test/test_phase5_optical_flow.py
+------------------------------------
+Validates:
+- flow fields are computed + stored (.npy)
+- saturation is respected
+- flow is non-trivial (not all zero)
+- visualization artifacts are produced
+
+
+src/test/test_phase5_dense_flow.py
+----------------------------------
+Validates:
+- dense flow shape/dtype/finiteness
+- saves a flow visualization and raw flow field
+
+
+src/test/test_phase5_ped_detect.py
+---------------------------------
+Validates:
+- MOG2 detection returns in-bounds boxes + centroids
+- avoids pathological “giant blob” passing silently
+- saves a debug overlay image
+
+
+src/test/test_phase5_ped_track.py
+---------------------------------
+Validates:
+- tracker keeps at least one ID persistent across frames
+- saves a debug overlay with IDs
+
+
+src/test/test_phase5_repulsion.py
+---------------------------------
+Validates:
+- repulsion magnitude increases when robot is closer to a pedestrian
+- repulsion finite (no NaN/inf)
+- saves a debug overlay showing repulsion vectors
+
+
+src/test/test_phase5_missions.py
+--------------------------------
+Validates:
+- two missions exist (L->R and R->L)
+- start/goal are in-bounds and directions are correct
+- saves a debug overlay with start/goal markers
+
+
+src/test/test_phase5_vt_dynamics.py
+-----------------------------------
+Validates:
+- VT integration tracks a constant flow field stably
+- repulsion acceleration pushes away in the correct direction
+
+
+-------------------------------------------------------------
+FILES MODIFIED
+-------------------------------------------------------------
+
+src/config.py
+-------------
+Added Phase 5 configuration section (single source of truth for video navigation):
+- video inputs (P5_VIDEO_FILENAME)
+- resizing + stride + max_seconds (fast tests vs real runs)
+- optical flow method + saturation cap (P5_FLOW_METHOD, P5_VMAX)
+- detection parameters (MOG2 + morphology thresholds)
+- tracking parameters (gate + miss count)
+- robot geometry in pixels (P5_ROBOT_RADIUS_PIX)
+- pedestrian safety + repulsion parameters (P5_RSAFE_PIX, P5_KREP_PED, etc.)
+- VT dynamics gains (P5_KV, P5_KD)
+- goal bias parameters (P5_W_GOAL, P5_GOAL_SPEED)
+
+Purpose:
+Makes Phase 5 tunable without touching code.
+
+
+-------------------------------------------------------------
+SYSTEM FEATURES IMPLEMENTED
+-------------------------------------------------------------
+
+1. VIDEO -> FRAMES PIPELINE
+---------------------------
+- Deterministic frame extraction into results folders
+- Supports stride + max_seconds + resizing for fast tests
+
+
+2. DENSE OPTICAL FLOW FIELD
+---------------------------
+- Computes flow between consecutive frames
+- Supports method switch (Farneback / DIS if implemented)
+- Supports saturation/clipping to keep dynamics stable
+
+
+3. PEDESTRIAN DETECTION + TRACKING
+----------------------------------
+- Background subtraction (MOG2) detection
+- Centroid extraction
+- Rough NN tracking to stabilize IDs and point motion
+
+
+4. ROBOT NAVIGATION IN FLOW WITH AVOIDANCE
+------------------------------------------
+- Robot follows local flow + goal bias
+- Repulsion keeps distance from detected pedestrians
+- Integrated with stable RK2 stepping and velocity clipping
+
+
+5. ARTIFACT EXPORT FOR SUBPROBLEM 3
+-----------------------------------
+- Two mission videos (L->R, R->L)
+- CSV logs for trajectory and minimum distance
+- Debug overlays (detections, tracks, flow arrows, robot, start/goal)
+
+
+-------------------------------------------------------------
+WHAT WORKS NOW
+-------------------------------------------------------------
+
+- Subproblem 3 pipeline runs end-to-end:
+  video -> frames -> flow -> pedestrian points -> robot motion -> saved artifacts
+- Tests exist for each component (frames, flow, detection, tracking, repulsion, missions, VT dynamics)
+- All Phase 5 outputs are stored neatly in results folders
+
+-------------------------------------------------------------
+NOTES
+-------------------------------------------------------------
+
+- Behavior is highly dependent on tuning (repulsion vs goal bias vs vmax).
+- Unit consistency is critical:
+  optical flow is px/frame and must be converted internally to px/sec.
+- For long videos, flow caching can drastically reduce rerun time.
+
+=============================================================
+END PHASE 5
+=============================================================
+
+
+
+=============================================================
+PHASE 6 - FINAL VALIDATION / SUBPROBLEM PACKAGING + CHECKBOX DELIVERABLES
+=============================================================
+
+STATUS: INTEGRATED AND RUNNABLE
+(Validation-style runs produce neatly organized outputs per subproblem inside a single results folder.)
+
+-------------------------------------------------------------
+FILES ADDED
+-------------------------------------------------------------
+
+run_phase6_validation.py   (or equivalent validation runner script)
+---------------------------------------------------------------
+High-level “final validation” runner that:
+- creates a new output/results_XXXX folder
+- runs the required subproblem pipelines (or their validating tests)
+- stores artifacts in:
+    output/results_XXXX/phase6_validation/subproblem1/
+    output/results_XXXX/phase6_validation/subproblem2/
+    output/results_XXXX/phase6_validation/subproblem3/
+
+Purpose:
+One command that generates everything needed for final submission evidence.
+
+
+Phase 6 validation output writers (generated artifacts)
+------------------------------------------------------
+The validation run stores (at minimum):
+- images / plots / GIFs
+- per-subproblem metrics.json
+- readable explanation .txt files for failures or warnings
+
+Example observed Subproblem 3 artifacts:
+- sub3_camera_motion_failure_demo.png
+- sub3_camera_motion_failure_explanation.txt
+- sub3_metrics.json
+
+Purpose:
+Provides a clean “proof bundle” for grading and debugging.
+
+
+-------------------------------------------------------------
+FILES MODIFIED
+-------------------------------------------------------------
+
+system_tester.py  (or overall runner entry point)
+-------------------------------------------------
+Extended / organized to support a “Phase 6 validation style run”:
+- runs grouped checks per subproblem
+- stores outputs in a predictable folder layout
+- prints compact PASS/FAIL summary and saves metrics
+
+
+src/test/*  (test suite integration updates)
+--------------------------------------------
+Phase 6 uses the existing test modules as “checkbox validators”.
+The suite now covers:
+- Subproblem 1: map->mask->centerline->spline->path-following validation + visualization
+- Subproblem 2: two-way swarm progress + corridor adherence + collision checks + GIF export
+- Subproblem 3: video missions + safety distance tracking + saved overlay videos
+
+Purpose:
+Ensures the final deliverables match the rubric and are reproducible.
+
+
+src/config.py
+-------------
+Confirmed separation of:
+- fast test settings (short max_seconds / higher stride)
+- real run settings (full video / stride 1)
+
+Purpose:
+Validation runs stay quick, while real runs generate full-quality deliverables.
+
+
+-------------------------------------------------------------
+SYSTEM FEATURES IMPLEMENTED
+-------------------------------------------------------------
+
+1. SUBPROBLEM-ORIENTED VALIDATION
+---------------------------------
+Instead of “phase-by-phase” only, the runner validates by rubric task:
+- Subproblem 1 artifacts + correctness checks
+- Subproblem 2 swarm safety + visualization
+- Subproblem 3 video navigation + safety distance logs
+
+
+2. NEAT OUTPUT PACKAGING
+------------------------
+- Standardized folder structure per subproblem
+- No overwriting: each run creates a new results_XXXX folder
+- Metrics saved as JSON for quick inspection and reporting
+
+
+3. FAILURE DEMOS + EXPLANATIONS (WHERE APPLICABLE)
+--------------------------------------------------
+When something fails (ex: safety distance below Rsafe in Subproblem 3),
+the validator stores:
+- a failure demo image
+- a plain-text explanation
+- metrics.json with key numbers
+
+Purpose:
+Makes debugging fast and provides transparent evidence for grading.
+
+
+-------------------------------------------------------------
+WHAT WORKS NOW
+-------------------------------------------------------------
+
+- One run can generate a full submission evidence bundle:
+  - Subproblem 1: path extraction + robot path-following + visuals
+  - Subproblem 2: two-way swarm GIF + collision/corridor metrics
+  - Subproblem 3: L->R and R->L videos + CSV logs + summaries
+- Validation artifacts are stored in a stable, predictable layout.
+
+
+-------------------------------------------------------------
+NOTES
+-------------------------------------------------------------
+
+- Subproblem 3 is the most sensitive to tuning and camera characteristics.
+  The validator can catch “min distance below Rsafe” early and provide a demo artifact.
+- The Phase 6 packaging is designed so you can zip a single results folder and
+  hand it in as evidence without hunting for files.
+
+=============================================================
+END PHASE 6
+=============================================================

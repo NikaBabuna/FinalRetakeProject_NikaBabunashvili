@@ -58,45 +58,49 @@ def render_path_following(spline, trajectory, save_path):
     - path borders
     - animated robot following path
     """
+    import os
+    import numpy as np
+    import matplotlib.pyplot as plt
+    import imageio
+
+    from src.map_tools.map_loader import load_map_image
+    from src.config import PATH_WIDTH
 
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
-
     gif_path = save_path.replace(".png", ".gif")
 
-    # -----------------------------
-    # load map
-    # -----------------------------
     img = load_map_image()
 
-    # -----------------------------
-    # precompute spline + borders
-    # -----------------------------
+    # spline + borders
     s_vals = np.linspace(0, spline.length, 600)
     center = np.array([spline.p(s) for s in s_vals])
 
     half_w = PATH_WIDTH / 2.0
     left = []
     right = []
-
     for s in s_vals:
         p = spline.p(s)
         t = spline.tangent(s)
         n = np.array([-t[1], t[0]])
         left.append(p + half_w * n)
         right.append(p - half_w * n)
-
     left = np.array(left)
     right = np.array(right)
 
-    # -----------------------------
-    # animation frames
-    # -----------------------------
-    frames = []
     traj = np.array(trajectory)
 
-    for i in range(0, len(traj), 3):  # skip frames for speed
-        plt.figure(figsize=(10, 6))
+    # -----------------------------
+    # SPEED CONTROL (the important part)
+    # -----------------------------
+    target_seconds = 8.0          # GIF lasts about this long
+    fps = 25                      # playback speed
+    max_frames = int(target_seconds * fps)
 
+    frame_stride = max(1, int(np.ceil(len(traj) / max_frames)))
+
+    frames = []
+    for i in range(0, len(traj), frame_stride):
+        plt.figure(figsize=(10, 6))
         plt.imshow(img)
         plt.axis("off")
 
@@ -111,25 +115,20 @@ def render_path_following(spline, trajectory, save_path):
         # robot
         plt.scatter(traj[i, 0], traj[i, 1], s=80)
 
-        plt.title("Robot Path Following")
+        plt.title(f"Robot Path Following (stride={frame_stride}, fps={fps})")
         plt.legend()
-
-        # save frame to memory
         plt.tight_layout()
 
         canvas = plt.gcf().canvas
         canvas.draw()
-
         frame = np.asarray(canvas.buffer_rgba())
-        frames.append(frame.copy())
-
+        frames.append(frame[..., :3].copy())  # store RGB
         plt.close()
-    # -----------------------------
-    # save gif
-    # -----------------------------
-    imageio.mimsave(gif_path, frames, fps=15)
 
-    print(f"[INFO] GIF saved → {gif_path}")
+    # Save GIF at desired speed
+    imageio.mimsave(gif_path, frames, duration=1.0 / fps)
+    print(f"[INFO] GIF saved -> {gif_path} (fps={fps}, stride={frame_stride}, frames={len(frames)})")
+
 
 
 

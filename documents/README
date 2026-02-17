@@ -1,0 +1,336 @@
+------------------------------------------------------------
+README.txt  (Swarm Navigation / Final Project)
+------------------------------------------------------------
+
+0) TL;DR QUICK START
+
+1) Create a fresh results folder:
+   python run_all.py
+
+2) Outputs land in:
+   output/results_XXXX/
+
+Inside that folder you will find:
+  subproblem1/  (A->B path + robot path-following artifacts)
+  subproblem2/  (two-way swarm GIF + metrics)
+  subproblem3/  (video missions: left->right + right->left, stops at goal)
+
+If you want to run pieces individually, jump to Section 6.
+
+------------------------------------------------------------
+1) PROJECT GOAL (WHAT THIS PROJECT DOES)
+
+This project simulates autonomous navigation in a constrained environment and includes
+three required subproblems:
+
+SUBPROBLEM 1 (5 points):
+  - Choose any A and B on the map.
+  - Extract the corridor, compute a smooth center path (spline).
+  - Run a single robot that follows the path.
+  - Export:
+      * the computed path (spline/centerline)
+      * the robot trajectory (what it actually followed)
+      * a visualization proving it stayed inside borders
+
+SUBPROBLEM 2 (5 points):
+  - Spawn a swarm of robots near A and near B (two groups).
+  - Run both groups simultaneously (A->B and B->A).
+  - Avoid collisions and stay in the corridor.
+  - Export:
+      * an animated GIF showing the swarm moving along the path
+      * collision metrics (should be 0 collisions)
+
+SUBPROBLEM 3 (5 points):
+  - Load a pedestrian video (data/pedestrians.mp4 by default).
+  - Extract frames, compute dense optical flow, detect pedestrians, and track them.
+  - Run two missions:
+      * Left -> Right
+      * Right -> Left
+  - The robot follows the flow while being pushed away from pedestrians.
+  - Export:
+      * two videos with overlays (robot + pedestrians + flow arrows)
+      * per-mission trajectory CSV
+      * per-mission min-distance CSV
+      * a mission summary text file
+  - Videos must STOP when the robot reaches the goal.
+
+------------------------------------------------------------
+2) WHY THE PIPELINE IS BUILT THIS WAY (THE "WHY")
+
+2.1 Why mask -> centerline -> spline?
+A raw map image is not directly navigable. The pipeline:
+  map image -> binary walkable corridor mask -> centerline points -> smooth spline
+gives a robust continuous "ideal path" plus corridor boundaries for constraints.
+
+2.2 Why repulsion forces?
+To avoid collisions without hard-coded rules:
+  - Swarm robots repel each other (Subproblem 2)
+  - Robot repels from pedestrians (Subproblem 3)
+Repulsion is local, reactive, and easy to tune.
+
+2.3 Why optical flow in Subproblem 3?
+Pedestrians create a dynamic environment. Dense optical flow gives a velocity field
+everywhere in the frame. The robot uses:
+  v_des = flow_velocity + goal_bias
+and adds repulsion acceleration from detected pedestrian points.
+
+------------------------------------------------------------
+3) UNITS / COORDINATES (VERY IMPORTANT)
+
+Everything is in PIXELS in the same coordinate system as the map/video frames.
+
+Time is in seconds.
+
+Core and swarm dynamics use pixels/second.
+
+Optical flow comes from OpenCV in pixels/frame.
+Phase 5 converts flow to pixels/second internally using:
+  flow_px_per_sec = flow_px_per_frame * (fps / stride)
+
+If anything feels "too fast" or "too slow", check unit conversions first.
+
+------------------------------------------------------------
+4) IMPORTANT FILES AND FOLDERS
+
+data/
+  map.png                 (the environment map)
+  pedestrians.mp4         (video for Subproblem 3)
+
+output/
+  results_XXXX/           (auto-created runs)
+
+src/config.py
+  Single source of truth for parameters (speed limits, repulsion, detector tuning, etc.)
+
+src/map_tools/
+  map_loader.py           load map.png
+  map_click_ab.py         A/B selection UI + persistence
+
+src/path/
+  path_extraction.py      corridor mask extraction from map
+  centerline.py           centerline extraction
+  spline_path.py          spline construction, sampling, closest_s, tangents
+  constraints.py          inside-corridor checks, distance-to-path
+
+src/core/
+  core.py                 RK2 integrator + single robot stepping
+
+src/swarm/
+  spawn.py                spawns two groups near endpoints
+  sim.py                  swarm simulation
+  collisions.py           collision detection
+  viz_swarm.py            swarm GIF rendering
+
+src/phase5/
+  video_frames.py         frame extraction from video (writes into results folder)
+  optical_flow.py         dense optical flow (Farneback/DIS)
+  ped_detect.py           MOG2 pedestrian detection -> bounding boxes / centroids
+  repulsion.py            repulsion force + min distance helper
+  run_missions.py         mission runner (two missions with overlays)
+
+src/test/
+  Many tests used by Phase 6 validation:
+    - subproblem 1 synthetic path tests
+    - subproblem 2 swarm tests
+    - subproblem 3 video tests
+
+run_phase6_validation.py
+  Runs validation suite and writes artifacts.
+
+run_all.py
+  One command that runs everything and stores neat outputs per subproblem.
+
+------------------------------------------------------------
+5) INSTALLATION / REQUIREMENTS
+
+Recommended:
+  Python 3.10+ (3.11 also fine)
+
+Install dependencies:
+  pip install -r requirements.txt
+
+Common required packages:
+  numpy
+  opencv-python
+  matplotlib
+  imageio
+
+NOTE:
+If OpenCV video encoding fails on your machine, try installing:
+  pip install opencv-python-headless
+or ensure your codec support is available.
+This project typically uses mp4v for .mp4 output.
+
+------------------------------------------------------------
+6) HOW TO RUN (INDIVIDUAL AND ALL-IN-ONE)
+
+6.1 Run everything (recommended)
+  python run_all.py
+
+6.2 Run validation suite (Phase 6)
+  python run_phase6_validation.py
+
+This produces:
+  output/results_XXXX/phase6_validation/
+with subfolders per subproblem + debug images + metrics JSON.
+
+6.3 Run only Subproblem 3 missions (Phase 5)
+  python run_phase5_missions.py
+
+This produces:
+  output/results_XXXX/phase5_runs/
+    mission1_left_to_right.mp4
+    mission2_right_to_left.mp4
+    *_traj.csv
+    *_mindist.csv
+    *_summary.txt
+
+6.4 Run only Subproblem 2 swarm GIF (if you have a runner)
+If you have a script that calls render_swarm_twoway_gif, you can run it directly.
+Otherwise Phase 6 already includes a swarm GIF export test.
+
+------------------------------------------------------------
+7) OUTPUTS (WHAT YOU SHOULD EXPECT TO SEE)
+
+Each run creates:
+  output/results_XXXX/
+
+Inside it, run_all.py should create:
+
+  subproblem1/
+    map_with_A_B.png              (A/B drawn on map)
+    path_mask_overlay.png         (walkable mask overlay)
+    centerline_debug.png          (centerline points)
+    spline_path_world.png         (spline sanity plot)
+    path_following.png            (robot vs spline)
+    final_visualization.gif       (animated single-robot visualization)
+    metrics.json (optional)
+
+  subproblem2/
+    swarm_spawn_debug.png
+    twoway_progress_mean_s.png
+    twoway_outside_counts.png
+    twoway_gif_export_*.gif       (main deliverable)
+    metrics.json (collisions/min distances)
+
+  subproblem3/
+    mission1_left_to_right.mp4
+    mission2_right_to_left.mp4
+    mission1_left_to_right_traj.csv
+    mission2_right_to_left_traj.csv
+    mission1_left_to_right_mindist.csv
+    mission2_right_to_left_mindist.csv
+    mission1_left_to_right_summary.txt
+    mission2_right_to_left_summary.txt
+
+The Phase 5 mission videos include overlays:
+  - pedestrian detections (green boxes)
+  - tracked centroids + IDs (red dots with id text)
+  - robot (white circle)
+  - start/goal markers
+  - local flow arrows around robot
+  - running minimum distance metric
+
+------------------------------------------------------------
+8) PARAMETER TUNING GUIDE (MOST IMPORTANT ON SUBPROBLEM 3)
+
+All tuning lives in src/config.py.
+
+Key Subproblem 3 knobs:
+
+  P5_VMAX (px/sec)
+    - hard cap on robot speed
+    - lowering reduces “too fast” behavior
+    - raising helps reach goal faster, but increases collision risk
+
+  P5_GOAL_SPEED (px/sec) and P5_W_GOAL
+    - goal bias helps robot move even in weak-flow areas
+    - too high can force the robot into pedestrians or override flow logic
+
+  P5_RSAFE_PIX (pixels)
+    - desired minimum safe distance from pedestrians
+    - larger means earlier avoidance (safer but may block progress)
+
+  P5_KREP_PED
+    - strength of repulsion
+    - too high makes pedestrians “carry” the robot or fling it away
+    - too low allows collisions
+
+  P5_KV, P5_KD
+    - VT dynamics response:
+      kv = tracking stiffness (how quickly v goes to v_des)
+      kd = damping (stability)
+    - if robot feels jittery: raise KD slightly
+    - if robot responds too slowly: increase KV slightly (but beware instability)
+
+Typical stable tuning approach:
+  1) Start with conservative speed:
+       P5_VMAX ~ 70..110
+       P5_GOAL_SPEED ~ 30..60
+  2) Set safety distance:
+       P5_RSAFE_PIX ~ 50..80
+  3) Increase repulsion until min_distance is near Rsafe:
+       P5_KREP_PED ~ 400..1400
+  4) If robot can’t reach goal, increase goal bias slightly:
+       increase P5_W_GOAL (small steps: 1.0 -> 1.2 -> 1.5)
+       or increase P5_GOAL_SPEED a bit
+  5) If robot gets “dragged” by pedestrians:
+       reduce P5_KREP_PED or cap max repulsion if your repulsion supports it
+
+------------------------------------------------------------
+9) STOPPING VIDEOS WHEN GOAL IS REACHED (SUBPROBLEM 3 REQUIREMENT)
+
+The mission runner should stop writing frames as soon as the robot is within a
+goal tolerance.
+
+Common stopping rule:
+  if norm(robot_xy - goal_xy) <= goal_tol_px:
+      break
+
+Where goal_tol_px might be:
+  goal_tol_px = max(10, 1.5 * robot_radius)
+
+If your mission runner currently runs through the whole video, add that break.
+
+------------------------------------------------------------
+10) TROUBLESHOOTING
+
+10.1 IDE "Low memory" / crashes while rendering video
+This is common with long videos and high resolution.
+Fixes:
+  - Increase IDE heap size (if using an IDE with a heap setting)
+  - Reduce output resolution:
+      P5_RUN_RESIZE_WIDTH = 480 or 360
+  - Increase frame stride:
+      P5_RUN_FRAME_STRIDE = 2 or 3
+  - Reduce runtime:
+      P5_RUN_MAX_SECONDS = 6 or 8 for quick test runs
+  - Use headless rendering:
+      do not display frames in real-time; only write to disk
+
+10.2 Output video file is tiny or not playable
+  - Check codec support (mp4v should work, but not always).
+  - Try writing .avi (MJPG) if mp4 fails.
+  - Verify VideoWriter opened successfully (vw.isOpened()).
+
+10.3 Robot collides often in Subproblem 3
+  - Increase P5_RSAFE_PIX
+  - Increase P5_KREP_PED
+  - Reduce P5_VMAX and/or P5_GOAL_SPEED
+  - Ensure repulsion uses the tracked centroids (not raw boxes)
+
+10.4 Robot never reaches the goal
+  - Increase P5_W_GOAL slightly
+  - Increase P5_GOAL_SPEED slightly
+  - Reduce repulsion strength slightly if it constantly blocks progress
+  - Confirm units are consistent (px/sec vs px/frame)
+
+------------------------------------------------------------
+11) NOTES ABOUT REPRODUCIBILITY
+
+config.RANDOM_SEED fixes many randomized components.
+If your swarm initialization uses a separate seed name, keep it consistent in config.
+
+------------------------------------------------------------
+END OF README
+------------------------------------------------------------

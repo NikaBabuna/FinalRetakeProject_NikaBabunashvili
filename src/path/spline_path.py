@@ -1,6 +1,16 @@
 import numpy as np
 from scipy.interpolate import CubicSpline
 
+# --- spline caching (for backwards-compatible constraint calls) ---
+_CACHED_SPLINE = None
+
+def get_spline():
+    global _CACHED_SPLINE
+    if _CACHED_SPLINE is None:
+        raise TypeError("No cached spline yet. Build a spline first.")
+    return _CACHED_SPLINE
+
+
 
 # ============================================================
 # SPLINE OBJECT
@@ -36,6 +46,15 @@ class SplinePath:
         # splines
         self.sx = CubicSpline(s, pts[:, 0])
         self.sy = CubicSpline(s, pts[:, 1])
+
+        # --- auto-cache newest spline for old APIs like distance_to_path(x) ---
+        global _CACHED_SPLINE
+        _CACHED_SPLINE = self
+        try:
+            from src.path import constraints as _constraints
+            _constraints.set_default_spline(self)
+        except Exception:
+            pass
 
     # ------------------------------------------------
     def clamp(self, s: float) -> float:

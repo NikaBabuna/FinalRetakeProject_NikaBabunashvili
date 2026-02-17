@@ -1,4 +1,6 @@
 # src/swarm/spawn.py
+#
+# Replace your whole file with this version (it includes your changes + fixes).
 
 import numpy as np
 from src import config
@@ -32,15 +34,32 @@ def _half_width_inner() -> float:
 
 
 def _min_sep() -> float:
-    # Prevent collisions at t=0
+    """
+    Prevent overlaps at t=0.
+    Prefer config.swarm_spawn_min_sep() if defined, otherwise fallback to SPAWN_MIN_SEP.
+    """
+    fn = getattr(config, "swarm_spawn_min_sep", None)
+    if callable(fn):
+        try:
+            return float(fn())
+        except Exception:
+            pass
+
     r = float(getattr(config, "ROBOT_RADIUS", 6.0))
     return float(getattr(config, "SPAWN_MIN_SEP", 2.0 * r + 0.5))
 
 
-def _spawn_points_near_s_range(spline, s_lo, s_hi, n_points, rng, max_tries=120) -> np.ndarray:
+def _spawn_points_near_s_range(
+    spline,
+    s_lo,
+    s_hi,
+    n_points,
+    rng,
+    max_tries=None
+) -> np.ndarray:
     """
-    Spawns points near a segment of the spline [s_lo, s_hi],
-    randomized inside the corridor width (normal offsets),
+    Spawns points near spline segment [s_lo, s_hi],
+    randomized inside corridor width (normal offsets),
     AND enforces a minimum separation between points.
     """
     s_lo = float(max(0.0, s_lo))
@@ -48,11 +67,17 @@ def _spawn_points_near_s_range(spline, s_lo, s_hi, n_points, rng, max_tries=120)
     if s_hi < s_lo:
         s_lo, s_hi = s_hi, s_lo
 
+    if max_tries is None:
+        # Keep this reasonable: enough attempts to place points, but not infinite.
+        # If you set SPAWN_MAX_TRIES=2000 in config, we still cap it a bit here.
+        max_tries = int(getattr(config, "SPAWN_MAX_TRIES", 300))
+        max_tries = int(np.clip(max_tries, 60, 600))
+
     half_inner = _half_width_inner()
     pts = np.zeros((n_points, 2), dtype=float)
 
     min_sep = _min_sep()
-    placed = []  # list of (2,) points already accepted
+    placed = []  # list of accepted points
 
     for i in range(n_points):
         ok = False
@@ -72,7 +97,8 @@ def _spawn_points_near_s_range(spline, s_lo, s_hi, n_points, rng, max_tries=120)
 
             # Separation check
             if placed:
-                d = np.linalg.norm(np.asarray(placed) - cand, axis=1)
+                arr = np.asarray(placed, dtype=float)
+                d = np.linalg.norm(arr - cand[None, :], axis=1)
                 if float(np.min(d)) < min_sep:
                     continue
 
@@ -82,7 +108,7 @@ def _spawn_points_near_s_range(spline, s_lo, s_hi, n_points, rng, max_tries=120)
             break
 
         if not ok:
-            # Fallback: deterministic offsets so we still place something and keep it spread.
+            # Fallback: deterministic offsets so we still place something spread out
             s = float(np.clip(0.5 * (s_lo + s_hi), 0.0, float(spline.length)))
             base = np.asarray(spline.p(s), dtype=float).reshape(2,)
             tan = np.asarray(spline.tangent(s), dtype=float).reshape(2,)
@@ -103,16 +129,17 @@ def spawn_swarm_state(spline, N: int | None = None, seed: int | None = None):
     Canonical Phase-4 initializer expected by tests.
 
     Returns:
-      positions: (N,2)
+      positions:  (N,2)
       velocities: (N,2)  all zeros
-      groups: (N,)      +1 (A->B) then -1 (B->A)
+      groups:     (N,)   +1 (A->B) then -1 (B->A)
     """
     if N is None:
         N = int(getattr(config, "N_ROBOTS", 24))
     N = int(N)
 
     if seed is None:
-        seed = int(getattr(config, "SEED", 0))
+        # IMPORTANT: your config uses RANDOM_SEED (not SEED)
+        seed = int(getattr(config, "RANDOM_SEED", 0))
 
     rng = np.random.default_rng(seed)
 
@@ -122,7 +149,11 @@ def spawn_swarm_state(spline, N: int | None = None, seed: int | None = None):
     L = float(spline.length)
 
     # how far along the spline we allow the spawn region to extend from endpoints
-    span = float(getattr(config, "SPAWN_S_SPAN", min(60.0, 0.12 * L)))
+    band_fn = getattr(config, "swarm_spawn_band_px", None)
+    if callable(band_fn):
+        span = float(band_fn(L))
+    else:
+        span = float(getattr(config, "SPAWN_S_SPAN", min(60.0, 0.12 * L)))
 
     pts_A = _spawn_points_near_s_range(spline, 0.0, span, half, rng)
     pts_B = _spawn_points_near_s_range(spline, max(0.0, L - span), L, rest, rng)
@@ -137,9 +168,7 @@ def spawn_swarm_state(spline, N: int | None = None, seed: int | None = None):
 
 
 def spawn_swarm_positions(spline, N: int | None = None, seed: int | None = None):
-    """
-    Returns only (positions, groups).
-    """
+    """Returns only (positions, groups)."""
     positions, velocities, groups = spawn_swarm_state(spline, N=N, seed=seed)
     return positions, groups
 

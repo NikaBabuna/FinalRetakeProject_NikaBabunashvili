@@ -4,7 +4,7 @@ import numpy as np
 from src import config
 from src.core.core import step_rk2
 from src.path.path_controller import PathController
-from src.path.border_forces import border_repulsion_force
+from src.path.constraints import border_repulsion_forces
 from src.swarm.collisions import detect_collisions
 
 
@@ -15,7 +15,17 @@ class ReversedSpline:
     """
     def __init__(self, spline):
         self._spline = spline
-        self.length = float(spline.length)
+
+        # Robust length extraction across variants
+        if hasattr(spline, "L"):
+            self.length = float(spline.L)
+        elif hasattr(spline, "length"):
+            val = spline.length
+            self.length = float(val() if callable(val) else val)
+        elif hasattr(spline, "get_length"):
+            self.length = float(spline.get_length())
+        else:
+            raise AttributeError("Spline must expose L, length, or get_length().")
 
     def p(self, s: float) -> np.ndarray:
         s = float(s)
@@ -30,6 +40,12 @@ class ReversedSpline:
 
     def closest_s(self, pos: np.ndarray) -> float:
         return float(self.length - self._spline.closest_s(pos))
+
+
+def _border_forces(positions: np.ndarray, spline) -> np.ndarray:
+    # constraints.border_repulsion_forces reads path width, robot radius, etc from config
+    return border_repulsion_forces(positions, spline)
+
 
 
 def simulate_swarm_oneway_A_to_B(spline, positions, velocities, steps, dt=None):
@@ -52,7 +68,7 @@ def simulate_swarm_oneway_A_to_B(spline, positions, velocities, steps, dt=None):
             targets[i] = controllers[i].update(positions[i])
 
         u = kp * (targets - positions)
-        u = u + border_repulsion_force(positions, spline)
+        u = u + _border_forces(positions, spline)  # (N,2) -> pushes inward near borders
 
         positions, velocities = step_rk2(positions, velocities, u, dt)
         traj[k] = positions
@@ -72,8 +88,8 @@ def simulate_swarm_twoway(
     groups,
     steps,
     dt=None,
-    log_collisions: bool = False,          # ✅ old tests use this
-    return_collision_log: bool = False,    # ✅ newer code can use this
+    log_collisions: bool = False,          # old tests use this
+    return_collision_log: bool = False,    # newer code can use this
 ):
     """
     Runs BOTH directions together starting at the same timestep.
@@ -117,7 +133,10 @@ def simulate_swarm_twoway(
             targets[i] = controllers[i].update(positions[i])
 
         u = kp * (targets - positions)
-        u = u + border_repulsion_force(positions, spline)
+
+        # IMPORTANT: border forces computed against the ORIGINAL corridor geometry
+        # (even though some controllers use the reversed spline).
+        u = u + _border_forces(positions, spline)
 
         positions, velocities = step_rk2(positions, velocities, u, dt)
         traj[k] = positions

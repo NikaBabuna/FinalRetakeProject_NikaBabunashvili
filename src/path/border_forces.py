@@ -1,58 +1,44 @@
+# src/path/border_forces.py
+
 import numpy as np
-from src import config
+from src.path.constraints import border_repulsion_force as _brf
+from src.path.constraints import border_repulsion_forces as _brfs
+from src.path.constraints import border_repulsion_forces, border_repulsion_force
 
 
-def border_repulsion_force(positions: np.ndarray, spline) -> np.ndarray:
+
+def _is_spline(obj) -> bool:
+    return (
+        hasattr(obj, "closest_s")
+        and hasattr(obj, "tangent")
+        and (hasattr(obj, "p") or hasattr(obj, "pos"))
+    )
+
+
+def border_repulsion_force(a, b=None, **kwargs):
     """
-    Returns a per-robot force (N,2) that pushes robots back toward the spline centerline
-    when they are too close to the corridor border.
+    Flexible wrapper that supports both call styles:
+      border_repulsion_force(spline, x)
+      border_repulsion_force(x, spline)
 
-    Logic:
-      - Find closest point on spline for each robot
-      - Compute radial vector from centerline to robot
-      - If distance > allowed_radius: push inward along that radial direction
+    And supports x as:
+      shape (2,)  -> returns (2,)
+      shape (N,2) -> returns (N,2)
     """
-    positions = np.asarray(positions, dtype=float)
-    N = positions.shape[0]
-    forces = np.zeros((N, 2), dtype=float)
+    if b is None:
+        raise TypeError("border_repulsion_force requires (spline, x) or (x, spline).")
 
-    path_width = float(getattr(config, "PATH_WIDTH_PIX", getattr(config, "PATH_WIDTH", 60.0)))
-    half_w = 0.5 * path_width
+    spline, x = (a, b) if _is_spline(a) else (b, a)
+    x = np.asarray(x, dtype=float)
 
-    robot_r = float(getattr(config, "ROBOT_RADIUS", 0.0))
-    margin = float(getattr(config, "BORDER_MARGIN", 6.0))
-    k_border = float(getattr(config, "K_BORDER", 40.0))
-    fmax = float(getattr(config, "BORDER_FORCE_MAX", 200.0))
+    if x.ndim == 1:
+        return _brf(spline, x, **kwargs)
 
-    # “Allowed” radius from centerline before border push kicks in
-    allowed = max(0.0, half_w - robot_r - margin)
+    if x.ndim == 2 and x.shape[1] == 2:
+        return _brfs(x, spline, **kwargs)
 
-    for i in range(N):
-        x = positions[i]
+    raise ValueError("x must be shape (2,) or (N,2).")
 
-        s = float(spline.closest_s(x))
-        c = spline.p(s)  # centerline point
-        dvec = x - c
-        d = float(np.linalg.norm(dvec))
 
-        if d < 1e-9:
-            continue  # exactly on centerline
-
-        if d <= allowed:
-            continue  # safely inside
-
-        # outward normal direction from centerline -> robot
-        n = dvec / d
-
-        # push inward proportional to penetration
-        pen = d - allowed
-        f = -k_border * pen * n
-
-        # clamp magnitude
-        mag = float(np.linalg.norm(f))
-        if mag > fmax:
-            f = f * (fmax / max(1e-9, mag))
-
-        forces[i] = f
-
-    return forces
+def border_repulsion_forces(positions, spline, **kwargs):
+    return border_repulsion_force(positions, spline, **kwargs)
